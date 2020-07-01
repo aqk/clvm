@@ -20,6 +20,24 @@ def to_pre_eval_op(pre_eval_f):
     return my_pre_eval_op
 
 
+def check_for_a_operator(value_stack, args_kw):
+    """
+    The `(a)` operator is deprecated.
+    """
+
+    DISALLOW_A_MSG = "Set environment variable CLVM_DISALLOW_A=N to enable support for (a)"
+
+    v1 = value_stack[-1].first()
+    if v1.listp() and not v1.first().listp() and v1.first().as_atom() == args_kw:
+        raise EvalError(v1.to(DISALLOW_A_MSG.encode()), v1)
+
+
+def default_disallow_a_value():
+    import os
+    disallow_a = os.getenv("CLVM_DISALLOW_A", "Y").upper().startswith("Y")
+    return disallow_a
+
+
 def run_program(
     program,
     args,
@@ -29,7 +47,11 @@ def run_program(
     max_cost=None,
     pre_eval_op=None,
     pre_eval_f=None,
+    disallow_a=None,
 ):
+    if disallow_a is None:
+        disallow_a = default_disallow_a_value()
+
     if pre_eval_f:
         pre_eval_op = to_pre_eval_op(pre_eval_f)
 
@@ -65,6 +87,9 @@ def run_program(
     def eval_op(op_stack, value_stack):
         if pre_eval_op:
             pre_eval_op(op_stack, value_stack)
+
+        if disallow_a:
+            check_for_a_operator(value_stack, args_kw)
 
         pair = value_stack.pop()
         sexp = pair.first()
